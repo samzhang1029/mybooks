@@ -1,0 +1,56 @@
+name: Windows portable smoke test
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - codex-windows-smoke-1.0.3
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      CODEX_RELEASE_TAG: codex-app-26.915.31029
+      INSTALL_ROOT: C:\CodexOffline
+
+    steps:
+      - name: Check out package sources
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Run portable installer unit tests
+        run: node --test front-end/test/portable.test.mjs
+
+      - name: Download and verify the pinned official MSIX
+        working-directory: windows-codex
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node download-latest-codex.mjs --tag $env:CODEX_RELEASE_TAG --force
+
+      - name: Extract the portable app
+        shell: pwsh
+        run: |
+          $manifest = Get-Content -LiteralPath .\front-end\manifest.json -Raw | ConvertFrom-Json
+          $msix = Join-Path (Resolve-Path .\windows-codex) $manifest.source.file
+          node .\front-end\bin\assemble.mjs install-portable-msix $msix $env:INSTALL_ROOT --force
+
+      - name: Launch and verify the portable app
+        shell: pwsh
+        run: .\windows-codex\smoke-windows-portable.ps1 -InstallRoot $env:INSTALL_ROOT
+
+      - name: Upload startup diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: codex-portable-smoke-diagnostics
+          path: ${{ runner.temp }}\codex-portable-smoke
+          if-no-files-found: warn
+          retention-days: 7
