@@ -40,7 +40,13 @@ jobs:
         run: |
           $manifest = Get-Content -LiteralPath .\front-end\manifest.json -Raw | ConvertFrom-Json
           $msix = Join-Path (Resolve-Path .\windows-codex) $manifest.source.file
-          node .\front-end\bin\assemble.mjs install-portable-msix $msix $env:INSTALL_ROOT --force
+          $output = node .\front-end\bin\assemble.mjs install-portable-msix $msix $env:INSTALL_ROOT --force 2>&1
+          $output | Write-Host
+          if ($LASTEXITCODE -ne 0) {
+            $message = ($output | Out-String).Replace("`r", ' ').Replace("`n", ' ').Replace('%', '%25')
+            Write-Host "::error title=Portable extraction failed::$message"
+            exit $LASTEXITCODE
+          }
 
       - name: Launch and verify the portable app
         shell: pwsh

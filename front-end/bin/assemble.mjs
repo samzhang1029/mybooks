@@ -102,19 +102,18 @@ async function assemble(outputArgument = './OpenAI.Codex.msix') {
   }
 }
 
-function runPowerShell(script, extraEnvironment = {}) {
+function extractArchiveWithWindowsTar(archive, destination) {
   const result = spawnSync(
-    'powershell.exe',
-    ['-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', script],
+    'tar.exe',
+    ['-xf', archive, '-C', destination],
     {
       encoding: 'utf8',
-      env: { ...process.env, ...extraEnvironment },
       stdio: 'inherit'
     }
   );
 
   if (result.error) throw result.error;
-  if (result.status !== 0) throw new Error(`PowerShell failed with exit code ${result.status}`);
+  if (result.status !== 0) throw new Error(`Windows tar extraction failed with exit code ${result.status}`);
 }
 
 function assertWindows() {
@@ -277,13 +276,7 @@ async function extractPortableArchive(archive, installDirectory, options) {
 
   try {
     await mkdir(stagingDirectory, { recursive: true });
-    runPowerShell(
-      "$ErrorActionPreference = 'Stop'; Add-Type -AssemblyName System.IO.Compression.FileSystem; [System.IO.Compression.ZipFile]::ExtractToDirectory($env:UTILS_CODE_ARCHIVE, $env:UTILS_CODE_STAGING)",
-      {
-        UTILS_CODE_ARCHIVE: archive,
-        UTILS_CODE_STAGING: stagingDirectory
-      }
-    );
+    extractArchiveWithWindowsTar(archive, stagingDirectory);
 
     const appRoot = join(stagingDirectory, 'app');
     const repairedPaths = await repairEncodedPaths(appRoot);
