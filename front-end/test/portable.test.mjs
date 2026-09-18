@@ -20,6 +20,7 @@ test('offline installation is portable and does not register an AppX package', a
   assert.doesNotMatch(source, /Developer Mode/);
   assert.doesNotMatch(source, /ZipFile.*ExtractToDirectory/);
   assert.match(source, /tar\.exe/);
+  assert.match(source, /if \(!\(await exists\(parentDirectory\)\)\) await mkdir/);
   assert.match(source, /install-portable-msix/);
   assert.match(source, /Source MSIX checksum mismatch/);
   assert.match(launcher, /set "CODEX_SPARKLE_ENABLED=false"/);

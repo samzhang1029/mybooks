@@ -271,7 +271,8 @@ async function extractPortableArchive(archive, installDirectory, options) {
   }
 
   const stagingDirectory = `${installDirectory}.partial-${process.pid}`;
-  await mkdir(dirname(installDirectory), { recursive: true });
+  const parentDirectory = dirname(installDirectory);
+  if (!(await exists(parentDirectory))) await mkdir(parentDirectory, { recursive: true });
   await rm(stagingDirectory, { recursive: true, force: true });
 
   try {
