@@ -50,7 +50,14 @@ jobs:
 
       - name: Launch and verify the portable app
         shell: pwsh
-        run: .\windows-codex\smoke-windows-portable.ps1 -InstallRoot $env:INSTALL_ROOT
+        run: |
+          $output = pwsh -NoLogo -NoProfile -File .\windows-codex\smoke-windows-portable.ps1 -InstallRoot $env:INSTALL_ROOT 2>&1
+          $output | Write-Host
+          if ($LASTEXITCODE -ne 0) {
+            $message = ($output | Out-String).Replace("`r", ' ').Replace("`n", ' ').Replace('%', '%25')
+            Write-Host "::error title=Portable launch failed::$message"
+            exit $LASTEXITCODE
+          }
 
       - name: Upload startup diagnostics
         if: always()
