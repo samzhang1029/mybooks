@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - codex-windows-smoke-1.0.3
+      - codex-windows-smoke-1.0.4
 
 permissions:
   contents: read
@@ -14,7 +14,7 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 30
     env:
-      CODEX_RELEASE_TAG: codex-app-26.915.31029
+      CODEX_RELEASE_TAG: codex-app-26.1013.40934
       INSTALL_ROOT: C:\CodexOffline
 
     steps:
@@ -35,16 +35,49 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: node download-latest-codex.mjs --tag $env:CODEX_RELEASE_TAG --force
 
-      - name: Extract the portable app
+      - name: Rebuild pinned npm packages
         shell: pwsh
         run: |
           $manifest = Get-Content -LiteralPath .\front-end\manifest.json -Raw | ConvertFrom-Json
-          $msix = Join-Path (Resolve-Path .\windows-codex) $manifest.source.file
-          $output = node .\front-end\bin\assemble.mjs install-portable-msix $msix $env:INSTALL_ROOT --force 2>&1
+          node .\windows-codex\update-npm-packages.mjs --version $manifest.version --force
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Pack and install npm packages locally
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $manifest = Get-Content -LiteralPath .\front-end\manifest.json -Raw | ConvertFrom-Json
+          $packed = Join-Path $env:RUNNER_TEMP 'codex-npm-tarballs'
+          $consumer = Join-Path $env:RUNNER_TEMP 'codex-npm-consumer'
+          New-Item -ItemType Directory -Force -Path $packed, $consumer | Out-Null
+          $directories = @($manifest.chunks | ForEach-Object { 'front-end-parts-' + $_.number }) + @('front-end')
+          $tarballs = @()
+          foreach ($directory in $directories) {
+            $json = npm pack ".\$directory" --pack-destination $packed --json
+            if ($LASTEXITCODE -ne 0) { throw "npm pack failed for $directory" }
+            $package = @(($json -join "`n") | ConvertFrom-Json)[0]
+            $tarballs += Join-Path $packed $package.filename
+          }
+          Push-Location $consumer
+          try {
+            npm init -y
+            if ($LASTEXITCODE -ne 0) { throw 'npm init failed' }
+            npm install @tarballs --ignore-scripts --no-audit --no-fund --offline
+            if ($LASTEXITCODE -ne 0) { throw 'Local npm installation failed' }
+          } finally {
+            Pop-Location
+          }
+
+      - name: Assemble npm parts and install the portable app
+        shell: pwsh
+        run: |
+          $consumer = Join-Path $env:RUNNER_TEMP 'codex-npm-consumer'
+          $assembler = Join-Path $consumer 'node_modules\@utils-code\front-end\bin\assemble.mjs'
+          $output = node $assembler install-portable $env:INSTALL_ROOT --force 2>&1
           $output | Write-Host
           if ($LASTEXITCODE -ne 0) {
             $message = ($output | Out-String).Replace("`r", ' ').Replace("`n", ' ').Replace('%', '%25')
-            Write-Host "::error title=Portable extraction failed::$message"
+            Write-Host "::error title=Npm portable installation failed::$message"
             exit $LASTEXITCODE
           }
 
@@ -64,6 +97,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: codex-portable-smoke-diagnostics
-          path: ${{ runner.temp }}\codex-portable-smoke
+          path: |
+            ${{ runner.temp }}\codex-portable-smoke\*.log
+            ${{ runner.temp }}\codex-portable-smoke\*.json
+            ${{ runner.temp }}\codex-portable-smoke\*.png
           if-no-files-found: warn
           retention-days: 7

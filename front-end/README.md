@@ -1,30 +1,29 @@
 # @utils-code/front-end
 
-This package contains the archive segments for Codex Windows 26.915.31029. It can assemble the original verified MSIX or extract a portable copy that starts without Microsoft Store/AppX registration. No install lifecycle script runs automatically.
+This package contains the archive segments for Codex Windows 26.1013.40934. It assembles the verified official MSIX and extracts a portable copy without Microsoft Store/AppX registration. No install lifecycle script runs automatically.
 
-## Portable installation on Windows
+## Portable installation on Windows (CMD)
 
-Fully exit any installed Microsoft Store/MSIX copy of Codex, then run from Command Prompt. A short path is recommended:
-
-```cmd
-npx utils-code-front-end install-portable C:\CodexOffline
-C:\CodexOffline\Codex.cmd
-```
-
-The installer does not call `Add-AppxPackage`, does not require Developer Mode, and does not modify the official `ChatGPT.exe` or `app.asar`. Its launcher disables the package-only updater and points the desktop app at the bundled Codex CLI. The legacy `install-offline` command remains as an alias for `install-portable`.
-
-Use `--force` only to replace the selected portable directory. “Offline” here means Store-independent installation and startup; Codex model requests still require network access.
-
-Before publishing, the same checkout can be tested directly on Windows:
+Exit existing Codex/ChatGPT processes. From an installer directory, run:
 
 ```cmd
-node front-end\bin\assemble.mjs install-portable C:\CodexOffline --force --launch
+npm install @utils-code/front-end@1.0.4 --ignore-scripts
+node_modules\.bin\utils-code-front-end.cmd install-portable "%USERPROFILE%\CodexOffline"
+call "%USERPROFILE%\CodexOffline\Codex.cmd"
 ```
 
-If no Windows machine is available, run the repository's **Windows portable smoke test** workflow from GitHub Actions. It downloads the pinned official MSIX, verifies its exact size and SHA-256, extracts it with this installer, and requires Electron to create a renderer page and remain running. Startup diagnostics are uploaded as a workflow artifact even when the check fails.
+Always launch through `Codex.cmd` (or the `launch` command). Directly opening `app\ChatGPT.exe` omits the required portable environment and can fail with a package-identity error. Point shortcuts at `Codex.cmd`.
+
+The installer does not call `Add-AppxPackage`, require Developer Mode, or modify the official executable or ASAR. It disables the package-only updater and selects the bundled Codex CLI. `install-offline` remains an alias for `install-portable`.
+
+To replace an existing portable directory, close Codex and add `--force`. Use a short, dedicated application directory. “Offline” means Store-independent installation and startup; sign-in and model requests still require network access.
 
 ## Assemble the original MSIX
 
 ```cmd
-npx utils-code-front-end assemble .\OpenAI.Codex.msix
+node_modules\.bin\utils-code-front-end.cmd assemble .\OpenAI.Codex.msix
 ```
+
+## Pre-publication verification
+
+The repository's **Windows portable smoke test** downloads the pinned MSIX, rebuilds the npm parts, packs and installs all packages locally, and runs the installed `install-portable` command at `C:\CodexOffline`. It verifies a renderer page is created and remains running. Diagnostics are uploaded even on failure. No account or model request is required.

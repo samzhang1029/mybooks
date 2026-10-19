@@ -15,6 +15,7 @@ if (-not $ArtifactDirectory) {
 
 $Executable = Join-Path $InstallRoot 'app\ChatGPT.exe'
 $Cli = Join-Path $InstallRoot 'app\resources\codex.exe'
+$Launcher = Join-Path $InstallRoot 'Codex.cmd'
 $UserData = Join-Path $ArtifactDirectory 'user-data'
 $CodexHome = Join-Path $ArtifactDirectory 'codex-home'
 $StdoutLog = Join-Path $ArtifactDirectory 'stdout.log'
@@ -31,10 +32,11 @@ if (-not (Test-Path -LiteralPath $Executable -PathType Leaf)) {
 if (-not (Test-Path -LiteralPath $Cli -PathType Leaf)) {
   throw "Bundled Codex CLI was not found: $Cli"
 }
+if (-not (Test-Path -LiteralPath $Launcher -PathType Leaf)) {
+  throw "Portable launcher was not found: $Launcher"
+}
 
-$env:CODEX_SPARKLE_ENABLED = 'false'
-$env:CODEX_CLI_PATH = $Cli
-$env:CODEX_ELECTRON_ENABLE_WINDOWS_COMPUTER_USE = '1'
+Remove-Item Env:CODEX_SPARKLE_ENABLED, Env:CODEX_CLI_PATH, Env:CODEX_ELECTRON_ENABLE_WINDOWS_COMPUTER_USE -ErrorAction SilentlyContinue
 $env:CODEX_HOME = $CodexHome
 $env:ELECTRON_ENABLE_LOGGING = '1'
 $env:ELECTRON_LOG_FILE = $ElectronLog
@@ -52,13 +54,9 @@ function Get-PortableProcesses {
 }
 
 try {
-  $Arguments = @(
-    "--remote-debugging-port=$DebugPort",
-    "--user-data-dir=$UserData",
-    '--disable-gpu'
-  )
-  $Process = Start-Process -FilePath $Executable -WorkingDirectory (Split-Path $Executable) `
-    -ArgumentList $Arguments -RedirectStandardOutput $StdoutLog -RedirectStandardError $StderrLog -PassThru
+  $LaunchCommand = '"call "{0}" --remote-debugging-port={1} --user-data-dir="{2}" --disable-gpu"' -f $Launcher, $DebugPort, $UserData
+  $Process = Start-Process -FilePath $env:ComSpec -WorkingDirectory $InstallRoot `
+    -ArgumentList @('/d', '/s', '/c', $LaunchCommand) -RedirectStandardOutput $StdoutLog -RedirectStandardError $StderrLog -PassThru
 
   $Deadline = (Get-Date).AddSeconds($TimeoutSeconds)
   do {
@@ -66,7 +64,7 @@ try {
     try {
       $Targets = @(Invoke-RestMethod -Uri "http://127.0.0.1:$DebugPort/json/list" -TimeoutSec 3)
       $PageTarget = $Targets | Where-Object {
-        $_.type -eq 'page' -and $_.url -notlike 'devtools://*'
+        $_.type -eq 'page' -and $_.url -ne 'about:blank' -and $_.url -notlike 'devtools://*' -and $_.url -notlike 'chrome-error://*'
       } | Select-Object -First 1
       if ($PageTarget) {
         $Targets | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $TargetsPath -Encoding utf8
@@ -89,6 +87,9 @@ try {
   if ((Get-PortableProcesses).Count -eq 0) {
     throw 'Portable Codex exited immediately after creating its renderer page.'
   }
+
+  node (Join-Path $PSScriptRoot 'verify-renderer.mjs') $ArtifactDirectory
+  if ($LASTEXITCODE -ne 0) { throw 'Portable renderer content verification failed.' }
 
   $LogText = @($StdoutLog, $StderrLog, $ElectronLog) | ForEach-Object {
     if (Test-Path -LiteralPath $_) { Get-Content -LiteralPath $_ -Raw -ErrorAction SilentlyContinue }
@@ -120,5 +121,6 @@ try {
   }
 }
 
-if ($Failure) { throw $Failure }
+if ($Failure) { Write-Error $Failure; exit 1 }
 Write-Host 'Portable Codex created a renderer page and remained running.'
+exit 0

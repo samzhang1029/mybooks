@@ -68,7 +68,8 @@ async function assemble(outputArgument = './OpenAI.Codex.msix') {
   const output = resolve(outputArgument);
   if (await exists(output)) throw new Error(`Refusing to overwrite ${output}`);
 
-  await mkdir(dirname(output), { recursive: true });
+  const parentDirectory = dirname(output);
+  if (!(await exists(parentDirectory))) await mkdir(parentDirectory, { recursive: true });
   const temporary = `${output}.partial`;
   await rm(temporary, { force: true });
   const target = createWriteStream(temporary, { flags: 'wx' });

@@ -1,0 +1,39 @@
+{
+  "name": "@utils-code/front-end",
+  "version": "1.0.4",
+  "description": "Portable installer and assembler for the split Codex Windows application archive.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/"
+  },
+  "bin": {
+    "utils-code-front-end": "./bin/assemble.mjs"
+  },
+  "files": [
+    "bin",
+    "manifest.json",
+    "README.md"
+  ],
+  "dependencies": {
+    "@utils-code/front-end-parts-001": "1.0.4",
+    "@utils-code/front-end-parts-002": "1.0.4",
+    "@utils-code/front-end-parts-003": "1.0.4",
+    "@utils-code/front-end-parts-004": "1.0.4",
+    "@utils-code/front-end-parts-005": "1.0.4",
+    "@utils-code/front-end-parts-006": "1.0.4",
+    "@utils-code/front-end-parts-007": "1.0.4",
+    "@utils-code/front-end-parts-008": "1.0.4",
+    "@utils-code/front-end-parts-009": "1.0.4",
+    "@utils-code/front-end-parts-010": "1.0.4",
+    "@utils-code/front-end-parts-011": "1.0.4",
+    "@utils-code/front-end-parts-012": "1.0.4",
+    "@utils-code/front-end-parts-013": "1.0.4",
+    "@utils-code/front-end-parts-014": "1.0.4",
+    "@utils-code/front-end-parts-015": "1.0.4",
+    "@utils-code/front-end-parts-016": "1.0.4",
+    "@utils-code/front-end-parts-017": "1.0.4",
+    "@utils-code/front-end-parts-018": "1.0.4",
+    "@utils-code/front-end-parts-019": "1.0.4"
+  }
+}
