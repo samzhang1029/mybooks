@@ -1,0 +1,65 @@
+name: Windows portable ZIP verification
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - codex-portable-26.1111.21308
+
+permissions:
+  contents: read
+
+jobs:
+  portable-zip:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Download pinned official source
+        working-directory: windows-codex
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node download-latest-codex.mjs --tag codex-app-26.1111.21308
+
+      - name: Build and verify portable ZIP
+        shell: pwsh
+        run: |
+          $output = node .\windows-codex\build-portable-zip.mjs 2>&1
+          $output | Write-Host
+          if ($LASTEXITCODE -ne 0) {
+            $message = ($output | Out-String).Replace('%', '%25').Replace("`r", ' ').Replace("`n", ' ')
+            Write-Host "::error title=ZIP build failed::$message"
+            exit $LASTEXITCODE
+          }
+
+      - name: Extract ZIP and launch generated Codex.cmd
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path C:\CodexZipTest -Force | Out-Null
+          tar -xf .\windows-codex\dist\Codex-26.1111.21308-win-x64-portable.zip -C C:\CodexZipTest
+          if ($LASTEXITCODE -ne 0) { throw 'ZIP extraction failed' }
+          $output = pwsh -NoLogo -NoProfile -File .\windows-codex\smoke-windows-portable.ps1 -InstallRoot C:\CodexZipTest\CodexOffline 2>&1
+          $output | Write-Host
+          if ($LASTEXITCODE -ne 0) {
+            $message = ($output | Out-String).Replace('%', '%25').Replace("`r", ' ').Replace("`n", ' ')
+            Write-Host "::error title=Portable ZIP launch failed::$message"
+            exit $LASTEXITCODE
+          }
+          Write-Host '::notice title=Portable ZIP verified::Codex 26.1111.21308 loaded visible renderer content from the extracted ZIP.'
+
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: portable-zip-26.1111.21308-diagnostics
+          path: |
+            ${{ runner.temp }}\codex-portable-smoke\*.log
+            ${{ runner.temp }}\codex-portable-smoke\*.json
+            ${{ runner.temp }}\codex-portable-smoke\*.png
+          if-no-files-found: warn
+          retention-days: 7
